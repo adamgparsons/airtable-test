@@ -6,8 +6,21 @@ const base = new Airtable({ apiKey: "keyMzueuX1hgzNozE" }).base(
 );
 
 function App() {
-  const [scores, setScores] = useState([]);
-  const [movements, setMovements] = useState([]);
+  const [scoresData, setScoresData] = useState([]);
+  const [movementsData, setMovementsData] = useState([]);
+
+  let movementsList = movementsData.map(movement => movement.fields.Name);
+  let scoresSorted = scoresData.sort(function(a, b) {
+    var scoreA = a.fields.Weight;
+    var scoreB = b.fields.Weight;
+    if (scoreA < scoreB) {
+      return 1;
+    }
+    if (scoreA > scoreB) {
+      return -1;
+    }
+    return 0;
+  });
 
   function handleClick(e) {
     e.preventDefault();
@@ -30,11 +43,11 @@ function App() {
   async function fetchScores() {
     base("Scores")
       .select({
-        view: "Grid view",
-        filterByFormula: "({Movement} = 'Deadlift')"
+        view: "Grid view"
+        // filterByFormula: "({Movement} = 'Deadlift')"
       })
       .eachPage((scores, fetchNextPage) => {
-        setScores(scores);
+        setScoresData(scores);
         // console.log(records);
         fetchNextPage();
       });
@@ -46,7 +59,7 @@ function App() {
         // filterByFormula: "({Movement} = 'Deadlift')"
       })
       .eachPage((movements, fetchNextPage) => {
-        setMovements(movements);
+        setMovementsData(movements);
         // console.log(movements);
         fetchNextPage();
       });
@@ -87,12 +100,20 @@ function App() {
         </select>
         <button type="submit">Search</button>
       </form>
-      {movements.length > 0 ? (
-        movements.map((movement, index) => (
+      {console.log(movementsList)}
+      {movementsData.length > 0 ? (
+        movementsData.map((movement, index) => (
           <div key={index}>
             <h2>{movement.fields.Name}</h2>
             <p>{movement.fields.Notes}</p>
-            <scoreRepeater scores={scores} movement={movement} />
+            {scoresSorted.map((score, index) =>
+              movement.fields.Name === score.fields.Movement ? (
+                <p key={index}>{score.fields.Weight}</p>
+              ) : (
+                ""
+              )
+            )}
+            {console.log(scoresSorted)}
           </div>
         ))
       ) : (
@@ -101,13 +122,5 @@ function App() {
     </div>
   );
 }
-
-export const scoreRepeater = props => {
-  return;
-  props.scores
-    .filter(score => score.fields.Name === props.movement.fields.Movement)
-    .map((score, index) => <p key="index">{score.fields.Weight}</p>);
-  console.log(score);
-};
 
 export default App;
