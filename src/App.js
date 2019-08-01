@@ -1,119 +1,92 @@
 import React, { useState, useEffect } from "react";
-import Airtable from "airtable";
+import axios from "axios";
 
-const base = new Airtable({ apiKey: "keyMzueuX1hgzNozE" }).base(
-  "app4cOMlQjy69Qwp5"
-);
+// const base = new Airtable({ apiKey: "keyMzueuX1hgzNozE" }).base(
+//   "app4cOMlQjy69Qwp5"
+// );
 
-function App() {
+const scoresUrl = "https://api.airtable.com/v0/app4cOMlQjy69Qwp5/scores";
+const movementsUrl = "https://api.airtable.com/v0/app4cOMlQjy69Qwp5/movement";
+
+// render list from JSON response to URL
+const Airtable = ({ scoresUrl, movementsUrl }) => {
   const [scoresData, setScoresData] = useState([]);
-  const [movementsData, setMovementsData] = useState([]);
+  const [movementData, setMovementData] = useState([]);
 
-  let movementsList = movementsData.map(movement => movement.fields.Name);
-  let scoresSorted = scoresData.sort(function(a, b) {
-    var scoreA = a.fields.Weight;
-    var scoreB = b.fields.Weight;
-    if (scoreA < scoreB) {
-      return 1;
+  let flags = {};
+  const topScores = scoresData.filter(function(entry) {
+    if (flags[entry.Movement]) {
+      return false;
     }
-    if (scoreA > scoreB) {
-      return -1;
-    }
-    return 0;
+    flags[entry.Movement] = true;
+    return true;
   });
+  console.log(topScores);
 
-  function handleClick(e) {
-    e.preventDefault();
-    base("Table 1").create(
-      {
-        Name: "Person 1",
-        colour: "Salmon",
-        Date: "2019-01-01"
-      },
-      function(err, record) {
-        if (err) {
-          console.error(err);
-          return;
+  // Using async directly in the useEffect function isn’t allowed.
+  // Let’s implement a workaround, by creating a separate async function.
+  // const fetchData = async () => {
+  //   const result = await axios(scoresUrl);
+  //   setScoresData(result.data.records);
+  //   setMovementData(result.data.records);
+  // };
+
+  // use fetch instead of axios
+  const getData = async () => {
+    try {
+      const scoresRes = await fetch(scoresUrl, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer keyMzueuX1hgzNozE"
         }
-        // console.log(record.getId());
-      }
-    );
-  }
-
-  async function fetchScores() {
-    base("Scores")
-      .select({
-        view: "Grid view"
-        // filterByFormula: "({Movement} = 'Deadlift')"
-      })
-      .eachPage((scores, fetchNextPage) => {
-        setScoresData(scores);
-        // console.log(records);
-        fetchNextPage();
       });
-  }
-  async function fetchMovements() {
-    base("Movement")
-      .select({
-        view: "Grid view"
-        // filterByFormula: "({Movement} = 'Deadlift')"
-      })
-      .eachPage((movements, fetchNextPage) => {
-        setMovementsData(movements);
-        // console.log(movements);
-        fetchNextPage();
+      const json = await scoresRes.json();
+      const jsonTrim = json.records.map(record => record.fields);
+      console.log(jsonTrim);
+      const dataSorted = jsonTrim.sort(function(a, b) {
+        var scoreA = a.Weight;
+        var scoreB = b.Weight;
+        if (scoreA < scoreB) {
+          return 1;
+        }
+        if (scoreA > scoreB) {
+          return -1;
+        }
+        return 0;
       });
-  }
+      setScoresData(dataSorted);
+      // console.log(dataSorted);
+    } catch (err) {
+      console.log(err);
+    }
+    //movement data
+    try {
+      const movementRes = await fetch(movementsUrl, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer keyMzueuX1hgzNozE"
+        }
+      });
+      const json = await movementRes.json();
+      setMovementData(json.records);
+      // console.log(json.records);
+    } catch (err) {
+      console.log(err);
+    }
+  };
 
+  // call async function from useEffect
   useEffect(() => {
-    fetchMovements();
-  }, []);
+    getData();
+  }, []); // provide an empty array as second argument to the effect hook to avoid activating it on component updates but only for the mounting of the component.
 
-  useEffect(() => {
-    fetchScores();
-  }, []);
   return (
-    <div className="App">
-      <form
-        onSubmit={e => {
-          e.preventDefault();
-          base("Table 1").create(
-            {
-              colour: "Salmon",
-              Date: "2019-01-01"
-            },
-            function(err, record) {
-              if (err) {
-                // console.error(err);
-                return;
-              }
-              // console.log(record.getId());
-            }
-          );
-          e.preventDefault();
-          fetchScores();
-        }}
-      >
-        <select>
-          <option value="Show top scores">Show top scores</option>
-          <option value="Show dealift scores">Show deadlift scores</option>
-        </select>
-        <button type="submit">Search</button>
-      </form>
-      {console.log(movementsList)}
-      {movementsData.length > 0 ? (
-        movementsData.map((movement, index) => (
+    <div>
+      {topScores.length > 0 ? (
+        topScores.map((score, index) => (
           <div key={index}>
-            <h2>{movement.fields.Name}</h2>
-            <p>{movement.fields.Notes}</p>
-            {scoresSorted.map((score, index) =>
-              movement.fields.Name === score.fields.Movement ? (
-                <p key={index}>{score.fields.Weight}</p>
-              ) : (
-                ""
-              )
-            )}
-            {console.log(scoresSorted)}
+            <h2>{score.Movement}</h2>
+            <p>{score.Weight}</p>
           </div>
         ))
       ) : (
@@ -121,6 +94,12 @@ function App() {
       )}
     </div>
   );
-}
+};
+
+const App = () => (
+  <div>
+    <Airtable scoresUrl={scoresUrl} movementsUrl={movementsUrl} />
+  </div>
+);
 
 export default App;
